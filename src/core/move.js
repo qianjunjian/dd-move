@@ -1,7 +1,10 @@
-class Move {
-    nativeRaf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame || function() {}
-    now = typeof performance != 'undefined' ? function() {return performance.now()} : Date.now;
+let nativeRaf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame || function() {}
 
+let now = typeof performance != "undefined" ? function() { 
+    return performance.now() 
+} : Date.now;  
+
+class Move {
     tension = 200; // 弹簧能量负荷
     friction = 30; // 弹簧阻力
     position = 0;
@@ -9,25 +12,35 @@ class Move {
     lastVelocity;
     // 初始速度
     v0 = 0;
-
-    from = 0; // 初始值
-    to = 0;  // 目标值
-
-    finished = false; // 是否执行完成
+    // 初始值
+    from = 0;
+    // 目标值
+    to = 0;
+    // 是否执行完成
+    finished = false;
+    // 动画执行时间
     ts = -1;
+    // 动画开始时间
     startTime = undefined;
 
-    constructor(porps) {
-        this.position = porps.position || 0;
-        this.from = porps.from || 0;
-        this.v0 = porps.velocity || 0;
+    constructor(options) {
+        // 初始化配置
+        options = options || {};
+        this.position = options.position || 0;
+        this.from = options.position || 0;
+        this.v0 = options.velocity || 0;
+        //  弹簧能量负荷
+        this.tension = options.config && options.config.tension;
+        // 弹簧阻力
+        this.friction = options.config && options.config.friction;
+        // 回调
+        this.valueChange = options.valueChange;
     }
 
     loop = () => {
         if (this.ts >= 0) {
-            console.log(">>>>>>>")
             var prevTs = this.ts;
-            this.ts = this.now();
+            this.ts = now();
             var timeout = this.isTimeout(this.ts)
             if (timeout) {
                 // 超时
@@ -35,7 +48,7 @@ class Move {
                 this._stop();
             } else {
                 this.run(prevTs ? Math.min(64, this.ts - prevTs) : 16.667)
-                window.requestAnimationFrame(this.loop)
+                this.animateId = nativeRaf(this.loop)
             }
         }
     }
@@ -46,14 +59,19 @@ class Move {
     }
 
     start = (data) => {
-        this.to = data.to;
         if (data.immediate) {
-            
+            this.to = data.position;
+            this.position = data.position;
+            this.from = data.position;
+            this._onChange(data.position, 0);
         } else {
             // 空闲
             if (this.ts < 0) {
                 this.ts = 0;
-                this.startTime = this.now();
+                this.to = data.position;
+                this.startTime = now();
+                // 清除缓存得最后速度
+                this.lastVelocity = null
                 this.loop();
             }
         }
@@ -97,12 +115,16 @@ class Move {
 
     _stop = () => {
         this.position = this.to;
-        console.log(">>>>>>>>>>>>>", this.position)
+        this.from = this.to;
         this.ts = -1;
+        this._onChange(this.to, 0)
     }
 
-    _onChange = (value) => {
-        console.log(">>>>>>>>>>>>>", value)
+    _onChange = (value, status = 1) => {
+        this.valueChange && this.valueChange({
+            position: value, 
+            status
+        });
     }
 }
 
